@@ -9,7 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
+
+	"github.com/gorilla/mux"
 )
 
 type JSONFileContent struct {
@@ -24,13 +25,9 @@ type Response struct {
 	Response json.RawMessage `json:"response"`
 }
 
-var (
-	getRouteMap map[string]json.RawMessage
-	postRouteMap map[string]json.RawMessage
-)
-
 func main() {
 	filePath := flag.String("f", "", "path to file with data to mock")
+	address := flag.String("a", ":9090", "address to listen on")
 	flag.Parse()
 
 	if flag.NFlag() < 1 {
@@ -54,54 +51,28 @@ func main() {
 		log.Fatalf("could not unmarshal json file: %v", err)
 	}
 
-	getRouteMap = make(map[string]json.RawMessage, len(fileContent.Paths))
-	postRouteMap = make(map[string]json.RawMessage, len(fileContent.Paths))
-	
-	re := regexp.MustCompile("[{}]+")
+	r := mux.NewRouter()
 
 	fmt.Println("identified paths:")
 	for _, path := range fileContent.Paths {
-		p := re.ReplaceAllString(path.Path, "")
+		p := path.Path
 		if path.Get != nil {
-			getRouteMap[p] = path.Get.Response
 			fmt.Println("GET ", p)
+			r.HandleFunc(path.Path, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Content-Type", "application/json")
+				writeResponse(path.Get.Response, w)
+			}).Methods(http.MethodGet)
 		}
 		if path.Post != nil {
-			postRouteMap[p] = path.Post.Response
 			fmt.Println("POST", p)
+			r.HandleFunc(path.Path, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Content-Type", "application/json")
+				writeResponse(path.Post.Response, w)
+			}).Methods(http.MethodPost)
 		}
 	}
-
-	http.HandleFunc("/", handler)
 	
-	http.ListenAndServe(":9090", nil)
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	requestPath := r.URL
-	requestMethod := r.Method
-
-	w.Header().Add("Content-Type", "application/json")
-
-	switch requestMethod {
-	case http.MethodGet:
-		if value, ok := getRouteMap[requestPath.Path]; ok {
-			writeResponse(value, w)
-		} else {
-			fmt.Println(value, ok)
-			write404(w)
-		}
-		return
-	case http.MethodPost:
-		if value, ok := postRouteMap[requestPath.Path]; ok {
-			writeResponse(value, w)
-		} else {
-			write404(w)
-		}
-		return
-	default:
-		write404(w)
-	}
+	http.ListenAndServe(*address, r)
 }
 
 func writeResponse(res json.RawMessage, w io.Writer) {
@@ -110,9 +81,4 @@ func writeResponse(res json.RawMessage, w io.Writer) {
 			panic(err)
 	}
 	fmt.Fprint(w, string(j))
-}
-
-func write404(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprint(w, "404")
 }
