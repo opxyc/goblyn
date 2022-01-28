@@ -64,18 +64,18 @@ func main() {
 	fmt.Println("identified paths:")
 	for _, path := range parsedFileContent.Paths {
 		if path.Get != nil {
-			RegisterNewGetRoute(path.Path, path.Get)
+			RegisterNewRoute(http.MethodGet, path.Path, path.Get)
 		}
 		if path.Post != nil {
-			RegisterNewPostRoute(path.Path, path.Post)
+			RegisterNewRoute(http.MethodPost, path.Path, path.Post)
 		}
 	}
 
 	http.ListenAndServe(*address, r)
 }
 
-func RegisterNewGetRoute(path string, req *ReqStructure) {
-	fmt.Println("GET ", path, "?", req.Params)
+func RegisterNewRoute(method string, path string, req *ReqStructure) {
+	fmt.Println(method, path, "?", req.Params)
 	query := []string{}
 	for _, param := range req.Params {
 		query = append(query, param, fmt.Sprintf("{%s}", param))
@@ -93,35 +93,12 @@ func RegisterNewGetRoute(path string, req *ReqStructure) {
 	}
 
 	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("[HIT | GET ]", r.URL)
-		w.Header().Add("Content-Type", "application/json")
+		fmt.Println(fmt.Sprintf("[HIT | %s]", r.Method), r.URL)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "authorization,content-type")
 		writeResponse(response, w)
-	}).Methods(http.MethodGet).Queries(query...)
-}
-
-func RegisterNewPostRoute(path string, req *ReqStructure) {
-	fmt.Println("POST", path, "?", req.Params)
-	query := []string{}
-	for _, param := range req.Params {
-		query = append(query, param, fmt.Sprintf("{%s}", param))
-	}
-
-	response := req.Response
-
-	if req.ResponseFromFile != nil {
-		fileContent, err := readFromFile(filepath.Join(fileDirectory, *req.ResponseFromFile))
-		if err != nil {
-			log.Fatalf("could not read file '%s': %v", *req.ResponseFromFile, err)
-		}
-
-		response = fileContent
-	}
-
-	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("[HIT | POST]", r.URL)
-		w.Header().Add("Content-Type", "application/json")
-		writeResponse(response, w)
-	}).Methods(http.MethodPost).Queries(query...)
+	}).Methods(method, http.MethodOptions).Queries(query...)
 }
 
 // writeResponse writes given message in `res` to the writer `w`
