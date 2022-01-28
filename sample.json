@@ -1,8 +1,31 @@
 {
   "paths": [
     {
-      "path": "/search/cameras/{cameraId}/aggregates",
+      "path": "/cameras/{cameraId}/nearbyCameras",
       "get": {
+        "params": ["category"],
+        "response": {
+          "cameras": [
+            {
+              "id": "cam-100db1b4",
+              "name": "cam1"
+            },
+            {
+              "id": "cam-100db1c9",
+              "name": "cam2"
+            },
+            {
+              "id": "cam-100db1b5",
+              "name": "cam3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "path": "/search/cameras/{cameraId}/aggregates",
+      "post": {
+        "params": ["include"],
         "response": {
           "results": [
             {
@@ -22,13 +45,8 @@
                   "person in black upperwear",
                   "female in black upperwear"
                 ],
-                "vehicle": [
-                  "string"
-                ],
-                "miscs": [
-                  "handbag",
-                  "bicycle"
-                ]
+                "vehicle": ["string"],
+                "miscs": ["handbag", "bicycle"]
               }
             }
           ],
@@ -38,12 +56,6 @@
           "nextPageToken": "abcdeABCDE12",
           "prevPageToken": "",
           "totalSize": 10
-        }
-      },
-      "post": {
-        "response": {
-          "response-line": 10,
-          "testing": "numbers as response is working"
         }
       }
     }
