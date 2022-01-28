@@ -9,26 +9,32 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 )
 
 type JSONFileContent struct {
-	Paths []struct{
-		Path string 				`json:"path"`
-		Get *ReqStructure 	`json:"get"`
-		Post *ReqStructure 	`json:"post"`
+	Paths []struct {
+		Path string        `json:"path"`
+		Get  *ReqStructure `json:"get"`
+		Post *ReqStructure `json:"post"`
 	} `json:"paths"`
+}
+
+type ReqStructure struct {
+	Params           Params          `json:"params"`
+	Response         json.RawMessage `json:"response"`
+	ResponseFromFile *string         `json:"responseFromFile"`
 }
 
 type Params []string
 
-type ReqStructure struct {
-	Params Params `json:"params"`
-	Response json.RawMessage `json:"response"`
-}
-
-var r *mux.Router
+var (
+	r             *mux.Router
+	fileDirectory string // for holding the directory of the json file so that
+	// any relative references can be handled
+)
 
 func main() {
 	filePath := flag.String("f", "", "path to file with data to mock")
@@ -40,18 +46,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	f, err := os.OpenFile(*filePath, os.O_RDONLY, 0444)
-	if err != nil {
-		log.Fatalf("could not open file '%s': %v", *filePath, err)
-	}
+	fileDirectory = filepath.Dir(*filePath)
 
-	b, err := ioutil.ReadAll(f)
+	fileContent, err := readFromFile(*filePath)
 	if err != nil {
 		log.Fatalf("could not read file '%s': %v", *filePath, err)
 	}
 
-	fileContent := &JSONFileContent{}
-	err = json.Unmarshal(b, fileContent)
+	parsedFileContent := &JSONFileContent{}
+	err = json.Unmarshal(fileContent, parsedFileContent)
 	if err != nil {
 		log.Fatalf("could not unmarshal json file: %v", err)
 	}
@@ -59,7 +62,7 @@ func main() {
 	r = mux.NewRouter()
 
 	fmt.Println("identified paths:")
-	for _, path := range fileContent.Paths {
+	for _, path := range parsedFileContent.Paths {
 		if path.Get != nil {
 			RegisterNewGetRoute(path.Path, path.Get)
 		}
@@ -67,7 +70,7 @@ func main() {
 			RegisterNewPostRoute(path.Path, path.Post)
 		}
 	}
-	
+
 	http.ListenAndServe(*address, r)
 }
 
@@ -77,10 +80,22 @@ func RegisterNewGetRoute(path string, req *ReqStructure) {
 	for _, param := range req.Params {
 		query = append(query, param, fmt.Sprintf("{%s}", param))
 	}
+
+	response := req.Response
+
+	if req.ResponseFromFile != nil {
+		fileContent, err := readFromFile(filepath.Join(fileDirectory, *req.ResponseFromFile))
+		if err != nil {
+			log.Fatalf("could not read file '%s': %v", *req.ResponseFromFile, err)
+		}
+
+		response = fileContent
+	}
+
 	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL)
+		fmt.Println("[HIT | GET ]", r.URL)
 		w.Header().Add("Content-Type", "application/json")
-		writeResponse(req.Response, w)
+		writeResponse(response, w)
 	}).Methods(http.MethodGet).Queries(query...)
 }
 
@@ -90,16 +105,46 @@ func RegisterNewPostRoute(path string, req *ReqStructure) {
 	for _, param := range req.Params {
 		query = append(query, param, fmt.Sprintf("{%s}", param))
 	}
+
+	response := req.Response
+
+	if req.ResponseFromFile != nil {
+		fileContent, err := readFromFile(filepath.Join(fileDirectory, *req.ResponseFromFile))
+		if err != nil {
+			log.Fatalf("could not read file '%s': %v", *req.ResponseFromFile, err)
+		}
+
+		response = fileContent
+	}
+
 	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("[HIT | POST]", r.URL)
 		w.Header().Add("Content-Type", "application/json")
-		writeResponse(req.Response, w)
+		writeResponse(response, w)
 	}).Methods(http.MethodPost).Queries(query...)
 }
 
+// writeResponse writes given message in `res` to the writer `w`
 func writeResponse(res json.RawMessage, w io.Writer) {
 	j, err := json.Marshal(&res)
 	if err != nil {
-			panic(err)
+		panic(err)
 	}
 	fmt.Fprint(w, string(j))
+}
+
+// readFromFile reads the contents of given `filePath`
+func readFromFile(filePath string) ([]byte, error) {
+	f, err := os.OpenFile(filePath, os.O_RDONLY, 0444)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }

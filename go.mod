@@ -1,4 +1,4 @@
-module github.com/opxyc/mocker
+module github.com/opxyc/goblin
 
 go 1.17
 
