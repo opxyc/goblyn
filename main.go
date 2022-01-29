@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,9 +14,12 @@ import (
 
 type JSONFileContent struct {
 	Paths []struct {
-		Path string        `json:"path"`
-		Get  *ReqStructure `json:"get"`
-		Post *ReqStructure `json:"post"`
+		Path   string        `json:"path"`
+		Get    *ReqStructure `json:"get"`
+		Post   *ReqStructure `json:"post"`
+		Patch  *ReqStructure `json:"patch"`
+		Put    *ReqStructure `json:"put"`
+		Delete *ReqStructure `json:"delete"`
 	} `json:"paths"`
 }
 
@@ -32,8 +33,7 @@ type Params []string
 
 var (
 	r             *mux.Router
-	fileDirectory string // for holding the directory of the json file so that
-	// any relative references can be handled
+	fileDirectory string
 )
 
 func main() {
@@ -48,7 +48,7 @@ func main() {
 
 	fileDirectory = filepath.Dir(*filePath)
 
-	fileContent, err := readFromFile(*filePath)
+	fileContent, err := ReadFromFile(*filePath)
 	if err != nil {
 		log.Fatalf("could not read file '%s': %v", *filePath, err)
 	}
@@ -64,17 +64,26 @@ func main() {
 	fmt.Println("identified paths:")
 	for _, path := range parsedFileContent.Paths {
 		if path.Get != nil {
-			RegisterNewRoute(http.MethodGet, path.Path, path.Get)
+			registerNewRoute(http.MethodGet, path.Path, path.Get)
 		}
 		if path.Post != nil {
-			RegisterNewRoute(http.MethodPost, path.Path, path.Post)
+			registerNewRoute(http.MethodPost, path.Path, path.Post)
+		}
+		if path.Patch != nil {
+			registerNewRoute(http.MethodPatch, path.Path, path.Patch)
+		}
+		if path.Put != nil {
+			registerNewRoute(http.MethodPut, path.Path, path.Put)
+		}
+		if path.Delete != nil {
+			registerNewRoute(http.MethodDelete, path.Path, path.Delete)
 		}
 	}
 
 	http.ListenAndServe(*address, r)
 }
 
-func RegisterNewRoute(method string, path string, req *ReqStructure) {
+func registerNewRoute(method string, path string, req *ReqStructure) {
 	fmt.Println(method, path, "?", req.Params)
 	query := []string{}
 	for _, param := range req.Params {
@@ -84,7 +93,7 @@ func RegisterNewRoute(method string, path string, req *ReqStructure) {
 	response := req.Response
 
 	if req.ResponseFromFile != nil {
-		fileContent, err := readFromFile(filepath.Join(fileDirectory, *req.ResponseFromFile))
+		fileContent, err := ReadFromFile(filepath.Join(fileDirectory, *req.ResponseFromFile))
 		if err != nil {
 			log.Fatalf("could not read file '%s': %v", *req.ResponseFromFile, err)
 		}
@@ -93,35 +102,10 @@ func RegisterNewRoute(method string, path string, req *ReqStructure) {
 	}
 
 	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(fmt.Sprintf("[HIT | %s]", r.Method), r.URL)
+		log.Println(fmt.Sprintf("[HIT | %s]", r.Method), r.URL)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "authorization,content-type")
-		writeResponse(response, w)
+		WriteResponse(response, w)
 	}).Methods(method, http.MethodOptions).Queries(query...)
-}
-
-// writeResponse writes given message in `res` to the writer `w`
-func writeResponse(res json.RawMessage, w io.Writer) {
-	j, err := json.Marshal(&res)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Fprint(w, string(j))
-}
-
-// readFromFile reads the contents of given `filePath`
-func readFromFile(filePath string) ([]byte, error) {
-	f, err := os.OpenFile(filePath, os.O_RDONLY, 0444)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	b, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }
