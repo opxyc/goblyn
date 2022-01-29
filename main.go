@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -32,13 +33,15 @@ type ReqStructure struct {
 type Params []string
 
 var (
-	r             *mux.Router
-	fileDirectory string
+	r               *mux.Router
+	fileDirectory   string
+	delayInResponse *uint
 )
 
 func main() {
 	filePath := flag.String("f", "", "path to file with data to mock")
 	address := flag.String("a", ":9090", "address to listen on")
+	delayInResponse = flag.Uint("d", 0, "delay to induce before each response in milliseconds")
 	flag.Parse()
 
 	if flag.NFlag() < 1 {
@@ -106,6 +109,7 @@ func registerNewRoute(method string, path string, req *ReqStructure) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "authorization,content-type")
+		time.Sleep(time.Duration(*delayInResponse) * time.Millisecond)
 		WriteResponse(response, w)
 	}).Methods(method, http.MethodOptions).Queries(query...)
 }

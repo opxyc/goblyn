@@ -5,14 +5,16 @@ A go program which will respond with data to mock a server; mainly useful while 
 ### Usage
 
 ```
-Usage of mocker:
+Usage of goblin:
   -a string
         address to listen on (default ":9090")
+  -d uint
+        delay to induce before each response in milliseconds
   -f string
         path to file with data to mock
 
 Example:
-  mocker -f sample.json -a :9090
+  goblin -f sample.json -a :8080 -d 200
 ```
 
 ### File Format
