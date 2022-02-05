@@ -25,12 +25,9 @@ type JSONFileContent struct {
 }
 
 type ReqStructure struct {
-	Params           Params          `json:"params"`
 	Response         json.RawMessage `json:"response"`
 	ResponseFromFile *string         `json:"responseFromFile"`
 }
-
-type Params []string
 
 var (
 	r               *mux.Router
@@ -87,11 +84,7 @@ func main() {
 }
 
 func registerNewRoute(method string, path string, req *ReqStructure) {
-	fmt.Println(method, path, "?", req.Params)
-	query := []string{}
-	for _, param := range req.Params {
-		query = append(query, param, fmt.Sprintf("{%s}", param))
-	}
+	fmt.Println(method, path)
 
 	response := req.Response
 
@@ -105,11 +98,10 @@ func registerNewRoute(method string, path string, req *ReqStructure) {
 	}
 
 	r.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		log.Println(fmt.Sprintf("[HIT | %s]", r.Method), r.URL)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "authorization,content-type")
 		time.Sleep(time.Duration(*delayInResponse) * time.Millisecond)
 		WriteResponse(response, w)
-	}).Methods(method, http.MethodOptions).Queries(query...)
+	}).Methods(method, http.MethodOptions)
 }
