@@ -1,4 +1,4 @@
-module github.com/opxyc/goblin
+module github.com/opxyc/goblyn
 
 go 1.17
 
