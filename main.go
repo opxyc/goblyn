@@ -80,7 +80,8 @@ func main() {
 		}
 	}
 
-	http.ListenAndServe(*address, r)
+	log.Printf("listening on port %s\n", *address)
+	log.Println(http.ListenAndServe(*address, r))
 }
 
 func registerNewRoute(method string, path string, req *ReqStructure) {
